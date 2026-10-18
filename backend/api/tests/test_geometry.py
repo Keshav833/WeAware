@@ -89,3 +89,64 @@ def test_checkpoint_eta(self):
                 total_duration_seconds=3600,
                 interval_miles=25,
             )
+
+def test_parse_route_geometry_converts_coordinates(self):
+    from api.services.geometry import parse_route_geometry
+
+    route = {
+        "geometry": {
+            "type": "LineString",
+            "coordinates": [
+                [-74.0060, 40.7128],
+                [-73.9855, 40.7580],
+                [-73.9442, 40.7794],
+            ],
+        },
+        "distance_miles": 5.0,
+        "duration_seconds": 1200,
+    }
+
+    result = parse_route_geometry(route)
+
+    self.assertEqual(
+        result["coordinates"],
+        [
+            (40.7128, -74.0060),
+            (40.7580, -73.9855),
+            (40.7794, -73.9442),
+        ],
+    )
+
+    self.assertEqual(len(result["segment_distances_miles"]), 2)
+    self.assertGreater(result["total_geometry_miles"], 0)
+    self.assertEqual(result["route_distance_miles"], 5.0)
+    self.assertEqual(result["duration_seconds"], 1200)
+
+
+def test_parse_route_geometry_rejects_insufficient_coordinates(self):
+    from api.services.geometry import parse_route_geometry
+
+    route = {
+        "geometry": {
+            "coordinates": [[-74.0060, 40.7128]],
+        }
+    }
+
+    with self.assertRaises(ValueError):
+        parse_route_geometry(route)
+
+
+def test_parse_route_geometry_rejects_invalid_latitude(self):
+    from api.services.geometry import parse_route_geometry
+
+    route = {
+        "geometry": {
+            "coordinates": [
+                [-74.0060, 40.7128],
+                [-73.9855, 95.0],
+            ]
+        }
+    }
+
+    with self.assertRaises(ValueError):
+        parse_route_geometry(route)
