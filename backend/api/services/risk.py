@@ -26,3 +26,39 @@ def wind_level(wind_mph: float) -> RiskLevel:
         return RiskLevel.SEVERE
 
     return RiskLevel.NO_TRAVEL
+
+
+def rain_level(rain_inches_per_hour: float) -> RiskLevel:
+    """Classify rainfall intensity in inches per hour."""
+
+    if rain_inches_per_hour < 0:
+        raise ValueError("Rainfall cannot be negative.")
+
+    if rain_inches_per_hour < 0.10:
+        return RiskLevel.LOW
+    if rain_inches_per_hour < 0.25:
+        return RiskLevel.MODERATE
+    if rain_inches_per_hour < 0.50:
+        return RiskLevel.HIGH
+    if rain_inches_per_hour <= 1.00:
+        return RiskLevel.SEVERE
+
+    return RiskLevel.NO_TRAVEL
+
+
+def snow_level(snow_inches_per_hour: float) -> RiskLevel:
+    """Classify snowfall intensity in inches per hour."""
+
+    if snow_inches_per_hour < 0:
+        raise ValueError("Snowfall cannot be negative.")
+
+    if snow_inches_per_hour < 0.5:
+        return RiskLevel.LOW
+    if snow_inches_per_hour < 1.0:
+        return RiskLevel.MODERATE
+    if snow_inches_per_hour < 2.0:
+        return RiskLevel.HIGH
+    if snow_inches_per_hour <= 3.0:
+        return RiskLevel.SEVERE
+
+    return RiskLevel.NO_TRAVEL
