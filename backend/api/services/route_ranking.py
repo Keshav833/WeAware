@@ -58,3 +58,26 @@ def rank_routes(routes: list[dict]) -> list[dict]:
         route["recommended"] = index == 1
 
     return ranked
+
+
+def rank_scored_routes(routes: list[dict]) -> list[dict]:
+    eligible = [
+        route
+        for route in routes
+        if route.get("scoring_available") is True
+        and route.get("score") is not None
+    ]
+
+    ranked_input = []
+
+    for route in eligible:
+        score = route["score"]
+        ranked_input.append({
+            "route_id": route["route_id"],
+            "severe_miles": score["severe_miles"],
+            "high_miles": score["high_miles"],
+            "average_risk_score": score["average_risk_score"],
+            "duration_seconds": score["duration_seconds"],
+        })
+
+    return rank_routes(ranked_input)

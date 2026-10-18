@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from api.services.route_ranking import rank_routes
+from api.services.route_ranking import rank_routes, rank_scored_routes
 
 
 class RouteRankingTests(SimpleTestCase):
@@ -100,3 +100,27 @@ class RouteRankingTests(SimpleTestCase):
     def test_rejects_missing_scoring_data(self):
         with self.assertRaises(ValueError):
             rank_routes([{"route_id": 1}])
+
+    def test_rank_scored_routes_excludes_incomplete_routes(self):
+        result = rank_scored_routes([
+            {
+                "route_id": 1,
+                "scoring_available": False,
+                "score": None,
+            },
+            {
+                "route_id": 2,
+                "scoring_available": True,
+                "score": {
+                    "severe_miles": 0,
+                    "high_miles": 5,
+                    "average_risk_score": 1.0,
+                    "duration_seconds": 3000,
+                },
+            },
+        ])
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["route_id"], 2)
+        self.assertEqual(result[0]["rank"], 1)
+        self.assertTrue(result[0]["recommended"])
