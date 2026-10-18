@@ -138,3 +138,46 @@ def generate_checkpoints(
         target_distance += interval_miles
 
     return checkpoints
+
+
+def parse_route_geometry(route: dict) -> dict:
+    """Convert Mapbox geometry into coordinates and segment distances."""
+    geometry = route.get("geometry", {})
+    raw_coordinates = geometry.get("coordinates", [])
+
+    if len(raw_coordinates) < 2:
+        raise ValueError("Route must contain at least two coordinates.")
+
+    coordinates = []
+
+    for point in raw_coordinates:
+        if len(point) < 2:
+            raise ValueError("Invalid coordinate in route geometry.")
+
+        longitude, latitude = point[0], point[1]
+
+        if not (-180 <= longitude <= 180):
+            raise ValueError("Longitude is out of range.")
+
+        if not (-90 <= latitude <= 90):
+            raise ValueError("Latitude is out of range.")
+
+        coordinates.append((latitude, longitude))
+
+    segment_distances = [
+        haversine_miles(
+            coordinates[i][0],
+            coordinates[i][1],
+            coordinates[i + 1][0],
+            coordinates[i + 1][1],
+        )
+        for i in range(len(coordinates) - 1)
+    ]
+
+    return {
+        "coordinates": coordinates,
+        "segment_distances_miles": segment_distances,
+        "total_geometry_miles": sum(segment_distances),
+        "route_distance_miles": route.get("distance_miles"),
+        "duration_seconds": route.get("duration_seconds"),
+    }
