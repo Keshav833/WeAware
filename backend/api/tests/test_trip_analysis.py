@@ -37,10 +37,11 @@ class TripAnalysisTests(SimpleTestCase):
             "summary": {},
         }
 
+        departure = datetime.now(timezone.utc) + timedelta(hours=1)
         result = analyze_trip(
             origin="Origin",
             destination="Destination",
-            departure_utc=datetime.now(timezone.utc) + timedelta(hours=1),
+            departure_utc=departure,
             load_lb=10000,
             interval_miles=25,
         )
@@ -52,6 +53,7 @@ class TripAnalysisTests(SimpleTestCase):
             mock_routes.return_value[0]["geometry"],
         )
         self.assertIsNone(result["recommendation_route_id"])
+        self.assertEqual(result["departure_utc"], departure.isoformat())
         self.assertFalse(result["routes"][0]["scoring_available"])
         mock_geocode.assert_any_call("Origin")
         mock_geocode.assert_any_call("Destination")

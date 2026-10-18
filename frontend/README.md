@@ -13,15 +13,27 @@ npm run dev
 ```
 
 The frontend calls `http://127.0.0.1:8000/api` by default. To use another API
-origin, set `VITE_API_BASE_URL` in a local `.env.local` file.
+origin, set `VITE_API_BASE_URL` in a local `.env.local` file. For example:
+
+```dotenv
+VITE_API_BASE_URL=https://api.example.com/api
+```
 
 ## Mapbox map
 
 Set `VITE_MAPBOX_ACCESS_TOKEN` in `.env.local` to a public Mapbox access token
 with map rendering enabled. Without this setting, route analysis and results
 remain available, but the map displays a configuration notice instead of
-rendering route geometry.
+rendering route geometry. If the browser cannot initialize WebGL, map rendering
+is disabled and forecast details remain available below the map.
 
 Vite environment variables are included in the browser bundle. Only use a
 public Mapbox token with suitable URL restrictions; never put provider secrets
 in frontend environment variables.
+
+## Build and checks
+
+```sh
+npm run lint
+npm run build
+```

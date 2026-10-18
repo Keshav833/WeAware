@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from api.services.checkpoint_analysis import analyze_checkpoint
 from api.services.route_analysis import build_route_checkpoints
 from api.services.route_summary import summarize_route
@@ -36,6 +38,34 @@ def analyze_route_with_weather(
             analyzed["risk_label"] = "Unknown"
             analyzed["weather_reason"] = weather_result["reason"]
 
+        forecast = []
+        for forecast_hour in range(49):
+            forecast_time = departure_utc + timedelta(hours=forecast_hour)
+            forecast_analysis = analyze_checkpoint(
+                checkpoint={
+                    **checkpoint,
+                    "eta": forecast_time.isoformat(),
+                },
+                weather_records=weather_result["records"],
+                load_lb=load_lb,
+            )
+            if not weather_result["available"]:
+                forecast_analysis["weather_available"] = False
+                forecast_analysis["risk_level"] = None
+                forecast_analysis["risk_label"] = "Unknown"
+                forecast_analysis["weather_reason"] = weather_result["reason"]
+
+            forecast.append({
+                "forecast_hour": forecast_hour,
+                "forecast_time": forecast_time.isoformat(),
+                "risk_level": forecast_analysis["risk_level"],
+                "risk_label": forecast_analysis["risk_label"],
+                "weather_available": forecast_analysis["weather_available"],
+                "weather_reason": forecast_analysis.get("weather_reason"),
+                "weather": forecast_analysis.get("weather"),
+            })
+
+        analyzed["forecast"] = forecast
         analyzed_checkpoints.append(analyzed)
 
     summary = summarize_route(analyzed_checkpoints)

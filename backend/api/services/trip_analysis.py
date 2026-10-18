@@ -65,6 +65,7 @@ def analyze_trip(
     return {
         "origin": origin_location,
         "destination": destination_location,
+        "departure_utc": departure_utc.isoformat(),
         "routes": analyzed_routes,
         "route_count": len(analyzed_routes),
         "recommendation_route_id": recommendation,

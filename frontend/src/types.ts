@@ -18,6 +18,28 @@ export interface Checkpoint {
   risk_label: string
   weather_available: boolean
   weather_reason?: string
+  weather?: {
+    wind_mph: number
+    rain_inches: number
+    snow_inches: number
+    weather_time: string
+  }
+  forecast?: CheckpointForecast[]
+}
+
+export interface CheckpointForecast {
+  forecast_hour: number
+  forecast_time: string
+  risk_level: number | null
+  risk_label: string
+  weather_available: boolean
+  weather_reason?: string | null
+  weather?: {
+    wind_mph: number
+    rain_inches: number
+    snow_inches: number
+    weather_time: string
+  }
 }
 
 export interface RiskSegment {
@@ -36,13 +58,23 @@ export interface RouteScore {
   risk_segments_count: number
 }
 
+export interface RouteSummary {
+  checkpoint_count: number
+  risk_counts: Record<'Low' | 'Moderate' | 'High' | 'Severe' | 'No Travel', number>
+  unknown_weather_count: number
+  known_checkpoint_count: number
+  average_risk_score: number | null
+  highest_risk: string
+  has_no_travel: boolean
+}
+
 export interface AnalyzedRoute {
   route_id: number | string | null
   distance_miles: number
   duration_seconds: number
   geometry?: RouteGeometry
   checkpoints: Checkpoint[]
-  summary: Record<string, unknown>
+  summary: RouteSummary
   comparison?: {
     scoring_available: boolean
     scoring_reason?: string | null
@@ -59,6 +91,7 @@ export interface AnalyzedRoute {
 export interface TripAnalysisResponse {
   origin: Location
   destination: Location
+  departure_utc: string
   routes: AnalyzedRoute[]
   route_count: number
   recommendation_route_id: number | string | null

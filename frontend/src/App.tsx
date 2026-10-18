@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import axios from 'axios'
 import apiClient from './api/clients'
 import RouteMap from './components/RouteMap'
+import { getCheckpointForecast } from './forecast'
 import type { AnalyzedRoute, TripAnalysisResponse } from './types'
 import './App.css'
 
@@ -63,6 +64,12 @@ function formatMiles(miles: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(miles)
 }
 
+function formatWeatherValue(value: number | undefined, unit: string) {
+  return value === undefined ? '—' : `${value.toFixed(1)} ${unit}`
+}
+
+const RISK_LABELS = ['Low', 'Moderate', 'High', 'Severe', 'No Travel'] as const
+
 function RouteCard({
   route,
   isSelected,
@@ -96,6 +103,19 @@ function RouteCard({
         <span>{route.checkpoints.length} checkpoints</span>
       </span>
 
+      <span className="route-checkpoint-counts" aria-label="Checkpoint counts by risk">
+        {RISK_LABELS.map((label) => (
+          <span className={`checkpoint-count risk-count-${label.toLowerCase().replaceAll(' ', '-')}`} key={label}>
+            <i className="risk-dot" />
+            {route.summary.risk_counts[label]} {label}
+          </span>
+        ))}
+        <span className="checkpoint-count risk-count-unknown">
+          <i className="risk-dot" />
+          {route.summary.unknown_weather_count} Unknown
+        </span>
+      </span>
+
       {route.scoring_available && route.score ? (
         <span className="route-risk-summary">
           <span><i className="risk-dot severe" />{formatMiles(route.score.severe_miles)} severe mi</span>
@@ -116,6 +136,8 @@ function App() {
   const [formValues, setFormValues] = useState(getInitialFormValues)
   const [analysis, setAnalysis] = useState<TripAnalysisResponse | null>(null)
   const [selectedRouteId, setSelectedRouteId] = useState<number | string | null>(null)
+  const [forecastHour, setForecastHour] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [formError, setFormError] = useState('')
@@ -123,6 +145,18 @@ function App() {
   const selectedRoute = analysis?.routes.find(
     (route) => route.route_id === selectedRouteId,
   ) ?? null
+
+  useEffect(() => {
+    if (!isPlaying || forecastHour >= 48) return
+
+    const timer = window.setTimeout(() => {
+      const nextHour = Math.min(forecastHour + 1, 48)
+      setForecastHour(nextHour)
+      if (nextHour === 48) setIsPlaying(false)
+    }, 1000)
+
+    return () => window.clearTimeout(timer)
+  }, [forecastHour, isPlaying])
 
   function updateField<Key extends keyof TripFormValues>(
     field: Key,
@@ -158,6 +192,7 @@ function App() {
     }
 
     setLoading(true)
+    setIsPlaying(false)
     setAnalysis(null)
     setSelectedRouteId(null)
 
@@ -170,6 +205,7 @@ function App() {
         interval_miles: Number(formValues.intervalMiles),
       })
       setAnalysis(response.data)
+      setForecastHour(0)
       const recommendationId = response.data.recommendation_route_id
       setSelectedRouteId(
         recommendationId
@@ -182,6 +218,23 @@ function App() {
       setLoading(false)
     }
   }
+
+  const selectedForecastTime = analysis
+    ? new Date(
+      new Date(analysis.departure_utc).getTime()
+      + forecastHour * 60 * 60 * 1000,
+    )
+    : null
+  const departureUtc = analysis?.departure_utc ?? ''
+  const availableSelectedForecasts = selectedRoute?.checkpoints.filter(
+    (checkpoint) => getCheckpointForecast(
+      checkpoint,
+      forecastHour,
+      analysis?.departure_utc ?? '',
+    ).weather_available,
+  ).length ?? 0
+  const unknownSelectedForecasts = (selectedRoute?.checkpoints.length ?? 0)
+    - availableSelectedForecasts
 
   return (
     <div className="app-shell">
@@ -288,7 +341,7 @@ function App() {
 
               <button className="submit-button" type="submit" disabled={loading}>
                 {loading ? (
-                  <><span className="spinner" aria-hidden="true" /> Analyzing routes…</>
+                  <><span className="spinner" aria-hidden="true" /> Finding routes and checking weather…</>
                 ) : (
                   <>Analyze trip <span aria-hidden="true">→</span></>
                 )}
@@ -311,6 +364,9 @@ function App() {
                 destination={analysis.destination}
                 routes={analysis.routes}
                 selectedRouteId={selectedRouteId}
+                onSelectRoute={setSelectedRouteId}
+                forecastHour={forecastHour}
+                departureUtc={analysis.departure_utc}
               />
             ) : (
               <div className="map-placeholder">
@@ -335,12 +391,28 @@ function App() {
                     onClick={() => setSelectedRouteId(route.route_id)}
                     type="button"
                   >
-                    <i className={`legend-line route-color-${index % 4}`} />
+                    <i className="route-select-indicator" />
                     Route {route.route_id ?? index + 1}
                   </button>
                 ))}
                 <span className="legend-marker"><i /> Checkpoint</span>
               </div>
+            )}
+            {analysis && analysis.routes.length > 0 && (
+              <>
+                <div className="risk-legend map-risk-legend" aria-label="Checkpoint risk legend">
+                  {RISK_LABELS.map((label) => (
+                    <span className={`risk-legend-item risk-count-${label.toLowerCase().replaceAll(' ', '-')}`} key={label}>
+                      <i className="risk-dot" />
+                      {label}
+                    </span>
+                  ))}
+                  <span className="risk-legend-item risk-count-unknown"><i className="risk-dot" />Unknown</span>
+                </div>
+                <p className="map-risk-note">
+                  Route colors estimate conditions between checkpoints; they are not precise road-level measurements.
+                </p>
+              </>
             )}
           </section>
         </div>
@@ -394,6 +466,60 @@ function App() {
               </div>
               <span className="results-count">Route {selectedRoute.route_id ?? ''}</span>
             </div>
+            <div className="forecast-control">
+              <div className="forecast-control-heading">
+                <label htmlFor="forecast-hour">Forecast time</label>
+                <span>Hour +{forecastHour} · {selectedForecastTime?.toLocaleString()}</span>
+              </div>
+              <div className="forecast-playback">
+                <button
+                  className="forecast-play-button"
+                  type="button"
+                  onClick={() => {
+                    if (forecastHour >= 48) setForecastHour(0)
+                    setIsPlaying(true)
+                  }}
+                  disabled={isPlaying}
+                  aria-label={forecastHour >= 48 ? 'Replay forecast' : 'Play forecast'}
+                >
+                  Play
+                </button>
+                <button
+                  className="forecast-play-button forecast-pause-button"
+                  type="button"
+                  onClick={() => setIsPlaying(false)}
+                  disabled={!isPlaying}
+                >
+                  Pause
+                </button>
+              </div>
+              <input
+                id="forecast-hour"
+                type="range"
+                min="0"
+                max="48"
+                step="1"
+                value={forecastHour}
+                onChange={(event) => {
+                  setIsPlaying(false)
+                  setForecastHour(Number(event.target.value))
+                }}
+                aria-valuetext={`Forecast hour ${forecastHour}, ${selectedForecastTime?.toLocaleString()}`}
+              />
+              <div className="forecast-range-labels">
+                <span>Departure</span>
+                <span>+24 hr</span>
+                <span>+48 hr</span>
+                <span className="forecast-availability">
+                  {availableSelectedForecasts} of {selectedRoute.checkpoints.length} checkpoints available
+                </span>
+              </div>
+              {unknownSelectedForecasts > 0 && (
+                <p className="forecast-data-warning" role="status">
+                  Forecast data is unavailable for {unknownSelectedForecasts} of {selectedRoute.checkpoints.length} checkpoints at this hour. Those sections are shown as Unknown.
+                </p>
+              )}
+            </div>
             {selectedRoute.checkpoints.length ? (
               <div className="checkpoint-table-wrap">
                 <table className="checkpoint-table">
@@ -401,23 +527,45 @@ function App() {
                     <tr>
                       <th>Checkpoint</th>
                       <th>Estimated arrival</th>
+                      <th>Forecast time</th>
                       <th>Weather risk</th>
-                      <th>Forecast</th>
+                      <th>Wind</th>
+                      <th>Rain</th>
+                      <th>Snow</th>
+                      <th>Forecast status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedRoute.checkpoints.map((checkpoint, index) => (
-                      <tr key={`${selectedRoute.route_id}-${checkpoint.distance_miles}-${index}`}>
-                        <td>{formatMiles(checkpoint.distance_miles)} mi</td>
-                        <td>{new Date(checkpoint.eta).toLocaleString()}</td>
-                        <td>
-                          <span className={`risk-label ${checkpoint.weather_available ? `risk-${checkpoint.risk_label.toLowerCase().replaceAll(' ', '-')}` : 'risk-unknown'}`}>
-                            {checkpoint.risk_label}
-                          </span>
-                        </td>
-                        <td>{checkpoint.weather_available ? 'Available' : checkpoint.weather_reason ?? 'Unavailable'}</td>
-                      </tr>
-                    ))}
+                    {selectedRoute.checkpoints.map((checkpoint, index) => {
+                      const forecast = getCheckpointForecast(
+                        checkpoint,
+                        forecastHour,
+                        departureUtc,
+                      )
+                      const riskLabel = forecast.weather_available
+                        ? forecast.risk_label
+                        : 'Unknown'
+
+                      return (
+                        <tr key={`${selectedRoute.route_id}-${checkpoint.distance_miles}-${index}`}>
+                          <td>{formatMiles(checkpoint.distance_miles)} mi</td>
+                          <td>{new Date(checkpoint.eta).toLocaleString()}</td>
+                          <td>{forecast.weather?.weather_time
+                            ? new Date(forecast.weather.weather_time).toLocaleString()
+                            : new Date(forecast.forecast_time).toLocaleString()}
+                          </td>
+                          <td>
+                            <span className={`risk-label risk-${riskLabel.toLowerCase().replaceAll(' ', '-')}`}>
+                              {riskLabel}
+                            </span>
+                          </td>
+                          <td>{forecast.weather_available ? formatWeatherValue(forecast.weather?.wind_mph, 'mph') : '—'}</td>
+                          <td>{forecast.weather_available ? formatWeatherValue(forecast.weather?.rain_inches, 'in/hr') : '—'}</td>
+                          <td>{forecast.weather_available ? formatWeatherValue(forecast.weather?.snow_inches, 'in/hr') : '—'}</td>
+                          <td>{forecast.weather_available ? 'Available' : forecast.weather_reason ?? 'Unavailable'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

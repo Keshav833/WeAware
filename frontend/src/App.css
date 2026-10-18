@@ -2,6 +2,16 @@
   min-height: 100vh;
 }
 
+.risk-legend {
+  margin: -2px 0 13px;
+  padding: 9px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  border-radius: 8px;
+  background: #f8faf8;
+}
+
 button,
 input,
 select {
@@ -528,6 +538,10 @@ button {
   gap: 8px 17px;
 }
 
+.map-risk-legend {
+  margin: 0 0 4px;
+}
+
 .legend-item,
 .legend-marker {
   padding: 0;
@@ -550,16 +564,16 @@ button {
   opacity: 1;
 }
 
-.legend-line {
-  width: 17px;
-  height: 3px;
-  border-radius: 2px;
+.route-select-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9aa39d;
 }
 
-.route-color-0 { background: #2563eb; }
-.route-color-1 { background: #e07b36; }
-.route-color-2 { background: #8b5cf6; }
-.route-color-3 { background: #0d9488; }
+.legend-active .route-select-indicator {
+  background: #197754;
+}
 
 .legend-marker i {
   width: 8px;
@@ -635,11 +649,6 @@ button {
   font-size: 12px;
 }
 
-.checkpoint-popup b {
-  color: #197754;
-  font-size: 11px;
-}
-
 .results-section,
 .checkpoint-section {
   margin-top: 20px;
@@ -667,6 +676,92 @@ button {
 .estimate-note span {
   color: #78957e;
   font-size: 13px;
+}
+
+.forecast-control {
+  margin: 0 0 14px;
+  padding: 13px 14px 10px;
+  border: 1px solid #e5ece5;
+  border-radius: 10px;
+  background: #fbfcfb;
+}
+
+.forecast-control-heading,
+.forecast-range-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.forecast-control-heading label {
+  color: #34463b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.forecast-control-heading > span {
+  color: #607168;
+  font-size: 10px;
+  text-align: right;
+}
+
+.forecast-playback {
+  display: flex;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.forecast-play-button {
+  min-width: 57px;
+  padding: 6px 10px;
+  border: 1px solid #cbdacf;
+  border-radius: 6px;
+  color: #197754;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.forecast-play-button:hover:not(:disabled) {
+  background: #edf6ef;
+}
+
+.forecast-play-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.forecast-control input[type="range"] {
+  width: 100%;
+  height: 5px;
+  margin: 10px 0 8px;
+  accent-color: #197754;
+  cursor: pointer;
+}
+
+.forecast-range-labels {
+  color: #89958c;
+  font-size: 9px;
+}
+
+.forecast-range-labels .forecast-availability {
+  margin-left: auto;
+  color: #607168;
+}
+
+.forecast-data-warning {
+  margin: 9px 0 0;
+  color: #786324;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.map-risk-note {
+  margin: 0 0 10px;
+  color: #78847b;
+  font-size: 9px;
+  line-height: 1.4;
 }
 
 .route-list {
@@ -750,6 +845,36 @@ button {
   font-size: 10px;
 }
 
+.route-checkpoint-counts {
+  padding: 10px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  border-top: 1px solid #edf0ed;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.checkpoint-count,
+.risk-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #536159;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.checkpoint-count .risk-dot,
+.risk-legend-item .risk-dot {
+  background: #278669;
+}
+
+.risk-count-moderate .risk-dot { background: #d1a328; }
+.risk-count-high .risk-dot { background: #e07b36; }
+.risk-count-severe .risk-dot { background: #dc4545; }
+.risk-count-no-travel .risk-dot { background: #9f2638; }
+.risk-count-unknown .risk-dot { background: #88919b; }
+
 .risk-dot {
   width: 7px;
   height: 7px;
@@ -801,6 +926,7 @@ button {
 
 .checkpoint-table {
   width: 100%;
+  min-width: 850px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -834,8 +960,8 @@ button {
 
 .risk-moderate { color: #957513; background: #fbf5dd; }
 .risk-high { color: #b25e28; background: #fff0e5; }
-.risk-severe,
-.risk-no-travel { color: #b13c3c; background: #ffebea; }
+.risk-severe { color: #b13c3c; background: #ffebea; }
+.risk-no-travel { color: #8e2032; background: #f8e8eb; }
 .risk-unknown { color: #68717b; background: #eff1f3; }
 
 .site-footer {

@@ -9,23 +9,144 @@ import Map, {
 } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { AnalyzedRoute, Checkpoint, Location } from '../types'
+import { getCheckpointForecast } from '../forecast'
+
+type RiskLabel = 'Low' | 'Moderate' | 'High' | 'Severe' | 'No Travel' | 'Unknown'
+type HeatmapFeature = {
+  type: 'Feature'
+  properties: { riskLabel: RiskLabel; color: string }
+  geometry: { type: 'LineString'; coordinates: [number, number][] }
+}
 
 interface RouteMapProps {
   origin: Location
   destination: Location
   routes: AnalyzedRoute[]
   selectedRouteId: number | string | null
+  onSelectRoute: (routeId: number | string | null) => void
+  forecastHour: number
+  departureUtc: string
 }
 
-const ROUTE_COLORS = ['#2563eb', '#e07b36', '#8b5cf6', '#0d9488']
+const RISK_COLORS: Record<RiskLabel, string> = {
+  Low: '#278669',
+  Moderate: '#d1a328',
+  High: '#e07b36',
+  Severe: '#dc4545',
+  'No Travel': '#9f2638',
+  Unknown: '#737c8b',
+}
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-function checkpointColor(checkpoint: Checkpoint) {
-  if (!checkpoint.weather_available) return '#737c8b'
-  if (checkpoint.risk_label === 'No Travel' || checkpoint.risk_label === 'Severe') return '#dc4545'
-  if (checkpoint.risk_label === 'High') return '#e07b36'
-  if (checkpoint.risk_label === 'Moderate') return '#d1a328'
-  return '#278669'
+function browserSupportsWebGL() {
+  if (typeof document === 'undefined' || typeof WebGLRenderingContext === 'undefined') {
+    return false
+  }
+  return document.createElement('canvas').getContext('webgl') !== null
+}
+
+function getCheckpointRiskLabel(
+  checkpoint: Checkpoint,
+  forecastHour: number,
+  departureUtc: string,
+): RiskLabel {
+  const forecast = getCheckpointForecast(checkpoint, forecastHour, departureUtc)
+  if (!forecast.weather_available) return 'Unknown'
+  return Object.hasOwn(RISK_COLORS, forecast.risk_label)
+    ? forecast.risk_label as RiskLabel
+    : 'Unknown'
+}
+
+function distanceMiles(start: [number, number], end: [number, number]) {
+  const radians = Math.PI / 180
+  const latitudeDelta = (end[1] - start[1]) * radians
+  const longitudeDelta = (end[0] - start[0]) * radians
+  const startLatitude = start[1] * radians
+  const endLatitude = end[1] * radians
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(startLatitude) * Math.cos(endLatitude)
+    * Math.sin(longitudeDelta / 2) ** 2
+  return 3958.7613 * 2 * Math.asin(Math.sqrt(Math.min(1, haversine)))
+}
+
+function routeHeatmapFeatures(
+  route: AnalyzedRoute,
+  forecastHour: number,
+  departureUtc: string,
+): HeatmapFeature[] {
+  const coordinates = route.geometry?.coordinates
+  if (!coordinates || coordinates.length < 2) return []
+
+  const cumulativeMiles = [0]
+  for (let index = 1; index < coordinates.length; index += 1) {
+    cumulativeMiles.push(
+      cumulativeMiles[index - 1]
+      + distanceMiles(coordinates[index - 1], coordinates[index]),
+    )
+  }
+  const routeLength = cumulativeMiles[cumulativeMiles.length - 1]
+  if (routeLength <= 0) return []
+
+  const pointAtDistance = (distance: number): [number, number] => {
+    const clampedDistance = Math.max(0, Math.min(routeLength, distance))
+    for (let index = 1; index < cumulativeMiles.length; index += 1) {
+      if (clampedDistance > cumulativeMiles[index]) continue
+      const segmentLength = cumulativeMiles[index] - cumulativeMiles[index - 1]
+      const fraction = segmentLength === 0
+        ? 0
+        : (clampedDistance - cumulativeMiles[index - 1]) / segmentLength
+      return [
+        coordinates[index - 1][0] + (coordinates[index][0] - coordinates[index - 1][0]) * fraction,
+        coordinates[index - 1][1] + (coordinates[index][1] - coordinates[index - 1][1]) * fraction,
+      ]
+    }
+    return coordinates[coordinates.length - 1]
+  }
+
+  const sortedCheckpoints = route.checkpoints
+    .map((checkpoint) => ({
+      distance: Math.max(0, Math.min(routeLength, checkpoint.distance_miles)),
+      riskLabel: getCheckpointRiskLabel(checkpoint, forecastHour, departureUtc),
+    }))
+    .sort((left, right) => left.distance - right.distance)
+
+  if (!sortedCheckpoints.length) {
+    return [{
+      type: 'Feature',
+      properties: { riskLabel: 'Unknown', color: RISK_COLORS.Unknown },
+      geometry: { type: 'LineString', coordinates },
+    }]
+  }
+
+  return sortedCheckpoints.flatMap((checkpoint, index) => {
+    const previous = sortedCheckpoints[index - 1]
+    const next = sortedCheckpoints[index + 1]
+    const startDistance = previous
+      ? (previous.distance + checkpoint.distance) / 2
+      : 0
+    const endDistance = next
+      ? (checkpoint.distance + next.distance) / 2
+      : routeLength
+    if (endDistance <= startDistance) return []
+
+    const sectionCoordinates: [number, number][] = [
+      pointAtDistance(startDistance),
+      ...coordinates.filter((_, coordinateIndex) =>
+        cumulativeMiles[coordinateIndex] > startDistance
+        && cumulativeMiles[coordinateIndex] < endDistance,
+      ),
+      pointAtDistance(endDistance),
+    ]
+
+    return [{
+      type: 'Feature' as const,
+      properties: {
+        riskLabel: checkpoint.riskLabel,
+        color: RISK_COLORS[checkpoint.riskLabel],
+      },
+      geometry: { type: 'LineString' as const, coordinates: sectionCoordinates },
+    }]
+  })
 }
 
 export default function RouteMap({
@@ -33,11 +154,15 @@ export default function RouteMap({
   destination,
   routes,
   selectedRouteId,
+  onSelectRoute,
+  forecastHour,
+  departureUtc,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef>(null)
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<{
     checkpoint: Checkpoint
     index: number
+    routeId: number | string | null
   } | null>(null)
 
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId)
@@ -73,12 +198,21 @@ export default function RouteMap({
     fitSelectedRoute()
   }, [fitSelectedRoute])
 
-  if (!MAPBOX_TOKEN) {
+  if (!MAPBOX_TOKEN || !browserSupportsWebGL()) {
     return (
       <div className="map-unavailable">
         <span className="map-unavailable-icon" aria-hidden="true">⌖</span>
-        <strong>Map preview needs a Mapbox token</strong>
-        <span>Set <code>VITE_MAPBOX_ACCESS_TOKEN</code> in the frontend environment to render returned route geometry.</span>
+        {!MAPBOX_TOKEN ? (
+          <>
+            <strong>Map preview needs a Mapbox token</strong>
+            <span>Set <code>VITE_MAPBOX_ACCESS_TOKEN</code> in the frontend environment to render returned route geometry.</span>
+          </>
+        ) : (
+          <>
+            <strong>Interactive map unavailable in this browser</strong>
+            <span>Enable WebGL to inspect the route heatmap. Forecast details remain available below.</span>
+          </>
+        )}
       </div>
     )
   }
@@ -93,16 +227,33 @@ export default function RouteMap({
           zoom: 7,
         }}
         onLoad={fitSelectedRoute}
+        interactiveLayerIds={routes.flatMap((route, index) =>
+          route.geometry?.coordinates.length ? [`route-line-${index}`] : [],
+        )}
+        onClick={(event) => {
+          const layerId = event.features?.[0]?.layer?.id
+          if (!layerId?.startsWith('route-line-')) return
+
+          const routeIndex = Number(layerId.slice('route-line-'.length))
+          const route = routes[routeIndex]
+          if (route) onSelectRoute(route.route_id)
+        }}
         mapboxAccessToken={MAPBOX_TOKEN}
         mapStyle="mapbox://styles/mapbox/streets-v12"
         attributionControl
         reuseMaps
       >
         <NavigationControl position="top-right" />
-        {routes.map((route, index) => {
+        {routes
+          .map((route, index) => ({ route, index }))
+          .sort((left, right) =>
+            Number(left.route.route_id === selectedRouteId)
+            - Number(right.route.route_id === selectedRouteId),
+          )
+          .map(({ route, index }) => {
           if (!route.geometry?.coordinates?.length) return null
           const isSelected = route.route_id === selectedRouteId
-          const color = ROUTE_COLORS[index % ROUTE_COLORS.length]
+          const heatmapFeatures = routeHeatmapFeatures(route, forecastHour, departureUtc)
 
           return (
             <Source
@@ -110,9 +261,8 @@ export default function RouteMap({
               key={`route-source-${route.route_id ?? index}`}
               type="geojson"
               data={{
-                type: 'Feature',
-                properties: {},
-                geometry: route.geometry,
+                type: 'FeatureCollection',
+                features: heatmapFeatures,
               }}
             >
               <Layer
@@ -120,10 +270,9 @@ export default function RouteMap({
                 type="line"
                 layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                 paint={{
-                  'line-color': color,
-                  'line-width': isSelected ? 6 : 3,
-                  'line-opacity': isSelected ? 0.95 : 0.55,
-                  ...(isSelected ? {} : { 'line-dasharray': [2, 1.5] }),
+                  'line-color': ['get', 'color'],
+                  'line-width': isSelected ? 7 : 4,
+                  'line-opacity': isSelected ? 0.95 : 0.3,
                 }}
               />
             </Source>
@@ -139,10 +288,14 @@ export default function RouteMap({
           >
             <button
               className="checkpoint-map-marker"
-              style={{ '--checkpoint-color': checkpointColor(checkpoint) } as CSSProperties}
+              style={{ '--checkpoint-color': RISK_COLORS[getCheckpointRiskLabel(checkpoint, forecastHour, departureUtc)] } as CSSProperties}
               type="button"
-              aria-label={`Checkpoint at ${checkpoint.distance_miles} miles: ${checkpoint.risk_label}`}
-              onClick={() => setSelectedCheckpoint({ checkpoint, index })}
+              aria-label={`Checkpoint at ${checkpoint.distance_miles} miles: ${getCheckpointRiskLabel(checkpoint, forecastHour, departureUtc)}`}
+              onClick={() => setSelectedCheckpoint({
+                checkpoint,
+                index,
+                routeId: selectedRoute.route_id,
+              })}
             >
               {index + 1}
             </button>
@@ -156,7 +309,7 @@ export default function RouteMap({
           <div className="endpoint-marker endpoint-destination"><span>B</span><b>Destination</b></div>
         </Marker>
 
-        {selectedCheckpoint && (
+        {selectedCheckpoint && selectedCheckpoint.routeId === selectedRoute?.route_id && (
           <Popup
             longitude={selectedCheckpoint.checkpoint.longitude}
             latitude={selectedCheckpoint.checkpoint.latitude}
@@ -167,11 +320,31 @@ export default function RouteMap({
             <div className="checkpoint-popup">
               <strong>Checkpoint {selectedCheckpoint.index + 1}</strong>
               <span>{selectedCheckpoint.checkpoint.distance_miles.toFixed(1)} route miles</span>
-              <span>{new Date(selectedCheckpoint.checkpoint.eta).toLocaleString()}</span>
-              <b>{selectedCheckpoint.checkpoint.risk_label}</b>
-              {!selectedCheckpoint.checkpoint.weather_available && (
-                <span>{selectedCheckpoint.checkpoint.weather_reason ?? 'Weather unavailable'}</span>
-              )}
+              <span>Arrival: {new Date(selectedCheckpoint.checkpoint.eta).toLocaleString()}</span>
+              {(() => {
+                const forecast = getCheckpointForecast(
+                  selectedCheckpoint.checkpoint,
+                  forecastHour,
+                  departureUtc,
+                )
+                return (
+                  <>
+                    <span>Forecast: {new Date(forecast.forecast_time).toLocaleString()}</span>
+                    <span className={`risk-label risk-${getCheckpointRiskLabel(selectedCheckpoint.checkpoint, forecastHour, departureUtc).toLowerCase().replaceAll(' ', '-')}`}>
+                      {getCheckpointRiskLabel(selectedCheckpoint.checkpoint, forecastHour, departureUtc)}
+                    </span>
+                    {forecast.weather_available ? (
+                      <>
+                        <span>Wind: {forecast.weather?.wind_mph.toFixed(1) ?? '—'} mph</span>
+                        <span>Rain: {forecast.weather?.rain_inches.toFixed(2) ?? '—'} in/hr</span>
+                        <span>Snow: {forecast.weather?.snow_inches.toFixed(2) ?? '—'} in/hr</span>
+                      </>
+                    ) : (
+                      <span>{forecast.weather_reason ?? 'Weather unavailable for this hour.'}</span>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </Popup>
         )}
