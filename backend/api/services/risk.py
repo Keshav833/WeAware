@@ -62,3 +62,38 @@ def snow_level(snow_inches_per_hour: float) -> RiskLevel:
         return RiskLevel.SEVERE
 
     return RiskLevel.NO_TRAVEL
+
+
+
+def checkpoint_risk(
+    wind_mph: float,
+    rain_inches_per_hour: float,
+    snow_inches_per_hour: float,
+    load_lb: float,
+) -> RiskLevel:
+    """
+    Calculate checkpoint risk from weather conditions
+    and truck load weight.
+    """
+
+    if load_lb <= 0:
+        raise ValueError("Load weight must be positive.")
+
+    # Get the base risk from each weather condition.
+    level = max(
+        wind_level(wind_mph),
+        rain_level(rain_inches_per_hour),
+        snow_level(snow_inches_per_hour),
+    )
+
+    # Apply the assignment's wind and load overrides.
+    if wind_mph >= 55:
+        level = RiskLevel.NO_TRAVEL
+
+    elif wind_mph >= 45 and load_lb > 30_000:
+        level = RiskLevel.NO_TRAVEL
+
+    elif wind_mph >= 35 and load_lb > 40_000:
+        level = max(level, RiskLevel.SEVERE)
+
+    return RiskLevel(level)

@@ -6,6 +6,7 @@ from api.services.risk import (
     wind_level,
     rain_level,
     snow_level,
+    checkpoint_risk,
 )
 
 class WindRiskTests(SimpleTestCase):
@@ -87,3 +88,35 @@ class SnowRiskTests(SimpleTestCase):
     def test_negative_snowfall_is_rejected(self):
         with self.assertRaises(ValueError):
             snow_level(-0.1)
+
+
+
+class CheckpointRiskTests(SimpleTestCase):
+
+    def test_extreme_wind_means_no_travel(self):
+        result = checkpoint_risk(55, 0, 0, 10000)
+        self.assertEqual(result, RiskLevel.NO_TRAVEL)
+
+    def test_heavy_load_and_severe_wind(self):
+        result = checkpoint_risk(45, 0, 0, 30001)
+        self.assertEqual(result, RiskLevel.NO_TRAVEL)
+
+    def test_exact_load_threshold_does_not_trigger_override(self):
+        result = checkpoint_risk(45, 0, 0, 30000)
+        self.assertEqual(result, RiskLevel.SEVERE)
+
+    def test_heavy_load_increases_high_wind_to_severe(self):
+        result = checkpoint_risk(35, 0, 0, 40001)
+        self.assertEqual(result, RiskLevel.SEVERE)
+
+    def test_exact_40000_lb_does_not_trigger_override(self):
+        result = checkpoint_risk(35, 0, 0, 40000)
+        self.assertEqual(result, RiskLevel.HIGH)
+
+    def test_highest_weather_risk_wins(self):
+        result = checkpoint_risk(10, 0, 2.5, 10000)
+        self.assertEqual(result, RiskLevel.SEVERE)
+
+    def test_zero_load_is_rejected(self):
+        with self.assertRaises(ValueError):
+            checkpoint_risk(10, 0, 0, 0)
