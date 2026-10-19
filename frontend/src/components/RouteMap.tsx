@@ -26,6 +26,7 @@ interface RouteMapProps {
   onSelectRoute: (routeId: number | string | null) => void
   forecastHour: number
   departureUtc: string
+  preview?: boolean
 }
 
 const RISK_COLORS: Record<RiskLabel, string> = {
@@ -157,6 +158,7 @@ export default function RouteMap({
   onSelectRoute,
   forecastHour,
   departureUtc,
+  preview = false,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef>(null)
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<{
@@ -178,6 +180,7 @@ export default function RouteMap({
   )
 
   const fitSelectedRoute = useCallback(() => {
+    if (preview) return
     if (!coordinates.length) return
     const longitudes = coordinates.map(([longitude]) => longitude)
     const latitudes = coordinates.map(([, latitude]) => latitude)
@@ -192,7 +195,7 @@ export default function RouteMap({
         maxZoom: 14,
       },
     )
-  }, [coordinates])
+  }, [coordinates, preview])
 
   useEffect(() => {
     fitSelectedRoute()
@@ -200,9 +203,22 @@ export default function RouteMap({
 
   if (!MAPBOX_TOKEN || !browserSupportsWebGL()) {
     return (
-      <div className="map-unavailable">
+      <div className={`map-unavailable${preview ? ' map-preview-unavailable' : ''}`}>
         <span className="map-unavailable-icon" aria-hidden="true">⌖</span>
-        {!MAPBOX_TOKEN ? (
+        {preview ? (
+          <>
+            <div className="map-preview-labels" aria-hidden="true">
+              <span>Canada</span><span>United States</span><span>Mexico</span>
+              <span>Pacific Ocean</span><span>Atlantic Ocean</span>
+            </div>
+            <div className="map-preview-message">
+              <strong>Map preview</strong>
+              <span>{!MAPBOX_TOKEN
+                ? 'Add a Mapbox token to explore the live map and trip routes.'
+                : 'Enable WebGL to explore the live map and trip routes.'}</span>
+            </div>
+          </>
+        ) : !MAPBOX_TOKEN ? (
           <>
             <strong>Map preview needs a Mapbox token</strong>
             <span>Set <code>VITE_MAPBOX_ACCESS_TOKEN</code> in the frontend environment to render returned route geometry.</span>
@@ -218,13 +234,13 @@ export default function RouteMap({
   }
 
   return (
-    <div className="route-map-container">
+    <div className={`route-map-container${preview ? ' route-map-preview' : ''}`}>
       <Map
         ref={mapRef}
         initialViewState={{
-          longitude: (origin.longitude + destination.longitude) / 2,
-          latitude: (origin.latitude + destination.latitude) / 2,
-          zoom: 7,
+          longitude: preview ? -98 : (origin.longitude + destination.longitude) / 2,
+          latitude: preview ? 39 : (origin.latitude + destination.latitude) / 2,
+          zoom: preview ? 3.5 : 7,
         }}
         onLoad={fitSelectedRoute}
         interactiveLayerIds={routes.flatMap((route, index) =>
@@ -239,7 +255,7 @@ export default function RouteMap({
           if (route) onSelectRoute(route.route_id)
         }}
         mapboxAccessToken={MAPBOX_TOKEN}
-        mapStyle="mapbox://styles/mapbox/streets-v12"
+        mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
         attributionControl
         reuseMaps
       >
@@ -302,12 +318,16 @@ export default function RouteMap({
           </Marker>
         ))}
 
-        <Marker longitude={origin.longitude} latitude={origin.latitude} anchor="bottom">
-          <div className="endpoint-marker endpoint-origin"><span>A</span><b>Origin</b></div>
-        </Marker>
-        <Marker longitude={destination.longitude} latitude={destination.latitude} anchor="bottom">
-          <div className="endpoint-marker endpoint-destination"><span>B</span><b>Destination</b></div>
-        </Marker>
+        {!preview && (
+          <>
+            <Marker longitude={origin.longitude} latitude={origin.latitude} anchor="bottom">
+              <div className="endpoint-marker endpoint-origin"><span>A</span><b>Origin</b></div>
+            </Marker>
+            <Marker longitude={destination.longitude} latitude={destination.latitude} anchor="bottom">
+              <div className="endpoint-marker endpoint-destination"><span>B</span><b>Destination</b></div>
+            </Marker>
+          </>
+        )}
 
         {selectedCheckpoint && selectedCheckpoint.routeId === selectedRoute?.route_id && (
           <Popup

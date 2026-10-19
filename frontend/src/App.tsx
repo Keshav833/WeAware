@@ -5,6 +5,7 @@ import RouteMap from './components/RouteMap'
 import { getCheckpointForecast } from './forecast'
 import type { AnalyzedRoute, TripAnalysisResponse } from './types'
 import './App.css'
+import './Redesign.css'
 
 interface TripFormValues {
   origin: string
@@ -240,10 +241,16 @@ function App() {
     <div className="app-shell">
       <header className="site-header">
         <a className="brand" href="/" aria-label="WeAware home">
-          <span className="brand-mark" aria-hidden="true">W</span>
-          <span>WeAware</span>
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M10.2 23.5h12.1a5.2 5.2 0 0 0 .3-10.4 7 7 0 0 0-13.4 1.5 4.5 4.5 0 0 0 1 8.9Z" />
+            </svg>
+          </span>
+          <span className="brand-copy">
+            <span>WeAware</span>
+            <small>Weather-Aware Truck Route Planner</small>
+          </span>
         </a>
-        <span className="header-caption">Weather-aware truck routing</span>
         <span className="header-status"><i /> Route safety planner</span>
       </header>
 
@@ -263,7 +270,7 @@ function App() {
         </section>
 
         <div className="workspace">
-          <aside className="trip-panel">
+          <aside className="trip-panel" id="trip-planner">
             <div className="panel-heading">
               <span className="step-number">01</span>
               <div>
@@ -274,7 +281,13 @@ function App() {
 
             <form onSubmit={handleSubmit} noValidate>
               <label className="field">
-                <span>Origin</span>
+                <span>
+                  <svg className="field-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M16 8.2c0 4.1-6 9.2-6 9.2S4 12.3 4 8.2a6 6 0 1 1 12 0Z" />
+                    <circle cx="10" cy="8" r="1.8" />
+                  </svg>
+                  From
+                </span>
                 <input
                   autoComplete="address-level2"
                   name="origin"
@@ -285,7 +298,13 @@ function App() {
                 />
               </label>
               <label className="field">
-                <span>Destination</span>
+                <span>
+                  <svg className="field-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M16 8.2c0 4.1-6 9.2-6 9.2S4 12.3 4 8.2a6 6 0 1 1 12 0Z" />
+                    <circle cx="10" cy="8" r="1.8" />
+                  </svg>
+                  To
+                </span>
                 <input
                   autoComplete="address-level2"
                   name="destination"
@@ -296,7 +315,13 @@ function App() {
                 />
               </label>
               <label className="field">
-                <span>Departure date &amp; time <small>Local time</small></span>
+                <span>
+                  <svg className="field-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <rect x="3" y="5" width="14" height="12" rx="2" />
+                    <path d="M6.5 3v4M13.5 3v4M3 9h14" />
+                  </svg>
+                  Departure date &amp; time <small>Local time</small>
+                </span>
                 <input
                   name="departure"
                   type="datetime-local"
@@ -309,7 +334,14 @@ function App() {
 
               <div className="field-row">
                 <label className="field">
-                  <span>Truck load <small>lb</small></span>
+                  <span>
+                    <svg className="field-icon" viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="M2 5h10v9H2zM12 8h3l3 3v3h-6z" />
+                      <circle cx="6" cy="15" r="1.5" />
+                      <circle cx="15" cy="15" r="1.5" />
+                    </svg>
+                    Truck load <small>lb</small>
+                  </span>
                   <input
                     name="loadLb"
                     type="number"
@@ -358,30 +390,16 @@ function App() {
               </div>
               {analysis && <span className="map-route-count">{analysis.route_count} {analysis.route_count === 1 ? 'route' : 'routes'} found</span>}
             </div>
-            {analysis ? (
-              <RouteMap
-                origin={analysis.origin}
-                destination={analysis.destination}
-                routes={analysis.routes}
-                selectedRouteId={selectedRouteId}
-                onSelectRoute={setSelectedRouteId}
-                forecastHour={forecastHour}
-                departureUtc={analysis.departure_utc}
-              />
-            ) : (
-              <div className="map-placeholder">
-                <div className="map-placeholder-art" aria-hidden="true">
-                  <span className="map-road map-road-one" />
-                  <span className="map-road map-road-two" />
-                  <span className="map-pin map-pin-start">A</span>
-                  <span className="map-pin map-pin-end">B</span>
-                </div>
-                <div className="map-placeholder-copy">
-                  <strong>Your routes will appear here</strong>
-                  <span>Submit a trip to see provider-supplied routes and checkpoint weather.</span>
-                </div>
-              </div>
-            )}
+            <RouteMap
+              origin={analysis?.origin ?? { name: 'United States', longitude: -98, latitude: 39 }}
+              destination={analysis?.destination ?? { name: 'United States', longitude: -98, latitude: 39 }}
+              routes={analysis?.routes ?? []}
+              selectedRouteId={selectedRouteId}
+              onSelectRoute={setSelectedRouteId}
+              forecastHour={forecastHour}
+              departureUtc={analysis?.departure_utc ?? ''}
+              preview={!analysis}
+            />
             {analysis && analysis.routes.length > 0 && (
               <div className="map-legend" aria-label="Map route legend">
                 {analysis.routes.map((route, index) => (
