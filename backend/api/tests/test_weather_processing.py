@@ -62,3 +62,15 @@ class WeatherProcessingTests(SimpleTestCase):
 
         with self.assertRaises(ValueError):
             normalize_weather_data(hourly)
+
+    def test_rejects_non_finite_measurements(self):
+        hourly = {
+            "time": ["2026-10-18T10:00"],
+            "wind_speed_10m": [float("nan")],
+            "rain": [0.0],
+            "showers": [0.0],
+            "snowfall": [0.0],
+        }
+
+        with self.assertRaises(ValueError):
+            normalize_weather_data(hourly)

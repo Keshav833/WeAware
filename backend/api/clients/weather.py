@@ -48,6 +48,9 @@ def get_weather_forecast(
     except ValueError as exc:
         raise WeatherError("Weather provider returned invalid JSON.") from exc
 
+    if not isinstance(data, dict):
+        raise WeatherError("Weather provider returned an invalid response.")
+
     hourly = data.get("hourly")
 
     if not isinstance(hourly, dict):
@@ -64,6 +67,9 @@ def get_weather_forecast(
     for field in required_fields:
         if field not in hourly:
             raise WeatherError(f"Weather response is missing {field}.")
+
+    if any(not isinstance(hourly[field], list) for field in required_fields):
+        raise WeatherError("Weather response contains invalid hourly data.")
 
     lengths = [len(hourly[field]) for field in required_fields]
 

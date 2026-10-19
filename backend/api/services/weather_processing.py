@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone
 
 
@@ -40,6 +41,9 @@ def normalize_weather_data(hourly: dict) -> list[dict]:
 
         values = [wind, rain, showers, snowfall_cm]
 
+        if not isinstance(time_value, str):
+            raise ValueError("Weather timestamps must be strings.")
+
         if any(value is None for value in values):
             records.append({
                 "time": _parse_utc_time(time_value),
@@ -49,6 +53,12 @@ def normalize_weather_data(hourly: dict) -> list[dict]:
                 "available": False,
             })
             continue
+
+        if any(
+            type(value) not in (int, float) or not math.isfinite(value)
+            for value in values
+        ):
+            raise ValueError("Weather measurements must be finite numbers.")
 
         if any(value < 0 for value in values):
             raise ValueError("Weather measurements cannot be negative.")

@@ -71,3 +71,43 @@ class WeatherClientTests(SimpleTestCase):
                 "2026-10-18",
                 "2026-10-19",
             )
+
+    @patch("api.clients.weather.httpx.get")
+    def test_rejects_non_object_provider_response(self, mock_get):
+        mock_get.return_value = httpx.Response(
+            200,
+            json=[],
+            request=httpx.Request("GET", "https://api.open-meteo.com"),
+        )
+
+        with self.assertRaises(WeatherError):
+            get_weather_forecast(
+                40.7128,
+                -74.0060,
+                "2026-10-18",
+                "2026-10-19",
+            )
+
+    @patch("api.clients.weather.httpx.get")
+    def test_rejects_non_array_hourly_fields(self, mock_get):
+        mock_get.return_value = httpx.Response(
+            200,
+            json={
+                "hourly": {
+                    "time": "2026-10-18T10:00",
+                    "wind_speed_10m": [20.0],
+                    "rain": [0.0],
+                    "showers": [0.0],
+                    "snowfall": [0.0],
+                }
+            },
+            request=httpx.Request("GET", "https://api.open-meteo.com"),
+        )
+
+        with self.assertRaises(WeatherError):
+            get_weather_forecast(
+                40.7128,
+                -74.0060,
+                "2026-10-18",
+                "2026-10-19",
+            )

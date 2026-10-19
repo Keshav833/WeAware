@@ -115,3 +115,17 @@ class AnalysisApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.data["detail"], "Provider unavailable.")
+
+    @patch("api.views.analyze_trip")
+    def test_rejects_invalid_trip_input_before_analysis(self, mock_analyze):
+        self.payload["load_lb"] = 0
+
+        response = self.client.post(
+            "/api/analyze",
+            self.payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("load_lb", response.data)
+        mock_analyze.assert_not_called()

@@ -49,3 +49,17 @@ class SafeWeatherTests(SimpleTestCase):
 
         self.assertFalse(result["available"])
         self.assertEqual(result["records"], [])
+
+    @patch("api.services.safe_weather.fetch_checkpoint_weather")
+    def test_handles_invalid_provider_forecast(self, mock_fetch):
+        mock_fetch.side_effect = ValueError("Weather measurements must be finite numbers.")
+
+        result = safe_fetch_checkpoint_weather({
+            "latitude": 40.7,
+            "longitude": -74.0,
+            "eta": "2026-10-18T10:30:00+00:00",
+        })
+
+        self.assertFalse(result["available"])
+        self.assertEqual(result["records"], [])
+        self.assertIn("finite numbers", result["reason"])

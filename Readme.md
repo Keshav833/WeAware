@@ -191,7 +191,8 @@ request.
 
 | Check | Result | Evidence/notes |
 |---|---|---|
-| Full backend suite | Pass | 88 Django tests passed, including risk thresholds, load overrides, checkpoint generation, weather matching, scoring, serializers, and API errors. |
+| Full backend suite | Pass | 93 Django tests passed, including risk thresholds, load overrides, checkpoint generation, weather matching, scoring, serializers, API errors, and malformed forecast handling. |
+| Invalid API input | Pass | Invalid zero truck load returns HTTP 400 before trip analysis starts. |
 | Empty required fields | Pass | Browser smoke check displayed the required origin/destination validation message without calling the API. |
 | Identical locations | Pass | Browser smoke check and serializer test rejected case-insensitive identical origin and destination. |
 | Valid trip submission and result rendering | Pass with fixture | Browser smoke check submitted a valid form against a deterministic mock response and displayed route/checkpoint results. |
@@ -199,7 +200,8 @@ request.
 | Forecast range and playback | Pass with fixture | Slider reached hour 48; playback advanced and stopped at 48; pause was responsive. |
 | Missing forecast | Pass with fixture | Unavailable weather displayed Unknown and an availability warning. |
 | API failure handling | Pass | Browser smoke check displayed the API's 502 detail message; backend API tests cover geocoding and routing failures. |
-| Weather-provider failure/empty response | Pass in backend tests | Weather-service tests cover provider failure and an empty forecast; route pipeline tests verify missing weather is Unknown. |
+| Weather-provider failure/empty/malformed response | Pass in backend tests | Provider errors, empty forecasts, malformed JSON structures, and non-finite measurements do not produce safe-risk values; missing weather remains Unknown. |
+| Frontend lint and production build | Pass | `npm run lint` and `npm run build` passed; Vite reports the existing Mapbox chunk-size advisory. |
 | Map canvas rendering | Not verified in this browser | WebGL was unavailable; the UI displayed its fallback. Verify the colored route layer in a WebGL-enabled browser with a valid public Mapbox token. |
 | Live provider trip request | Not verified | Requires valid Mapbox credentials and provider network access. |
 
